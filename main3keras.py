@@ -12,7 +12,7 @@ import re  # Regular expression library for validation
 import tempfile
 
 # Define paths
-model_path = 'model3.keras'  # Update with the path to your model
+model_path = 'model3.h5'  # Update with the path to your model
 
 # Load the saved model
 model = load_model(model_path)
