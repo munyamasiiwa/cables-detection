@@ -12,18 +12,24 @@ import re  # Regular expression library for validation
 import tempfile
 from tensorflow.keras.layers import InputLayer
 import tensorflow as tf
+from tensorflow.keras.utils import custom_object_scope
 
+def custom_layer_deserializer(cls, cls_config):
+    # Remove the 'batch_shape' from config if it exists since it's causing the error
+    cls_config.pop('batch_shape', None)  # Safely remove the batch_shape key if it exists
+    # Create the layer with the modified configuration
+    return cls(**cls_config)
 
-# Custom function to replace unrecognized configurations
-def custom_layer_deserializer(config):
-    if 'batch_shape' in config:
-        config.pop('batch_shape')  # Remove the problematic configuration
-        return InputLayer(**config)
-    return None
-model_path = 'model3.h5'  # Update with the path to your model
-# Load model with a custom object scope
-with tf.keras.utils.custom_object_scope({'InputLayer': custom_layer_deserializer}):
-    model = load_model(model_path)
+model_path = 'model3.h5'  # Update with the correct path
+
+# Define custom objects if any other custom layers are used
+custom_objects = {
+    'InputLayer': custom_layer_deserializer,
+    # include other custom layers if necessary
+}
+
+with custom_object_scope(custom_objects):
+     model = load_model(model_path)
 
 
 def create_database_connection():
