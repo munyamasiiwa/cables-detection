@@ -1,5 +1,5 @@
 h5py
-keras
+keras==3.3.2
 Keras-Preprocessing
 opencv-python-headless
 tensorboard
@@ -16,5 +16,5 @@ somepackage; python_version >= '3.6'  # Correct
 mysql-connector-python
 bcrypt
 passlib
-tensorflow==3.3.2
+tensorflow==2.4.1
 
