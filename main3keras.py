@@ -16,7 +16,7 @@ from tensorflow.keras.utils import custom_object_scope
 
 def custom_layer_deserializer(cls, cls_config):
     # Remove the 'batch_shape' from config if it exists since it's causing the error
-    cls_config.pop('batch_shape', None)  # Safely remove the batch_shape key if it exists
+    cls_config.pop('event_shape', None)  # Safely remove the batch_shape key if it exists
     # Create the layer with the modified configuration
     return cls(**cls_config)
 
