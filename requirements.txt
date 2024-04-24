@@ -16,6 +16,6 @@ somepackage; python_version >= '3.6'  # Correct
 mysql-connector-python
 bcrypt
 passlib
-tensorflow==2.8.2
+tensorflow==2.2.4
 
 
