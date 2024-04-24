@@ -7,7 +7,7 @@ tensorboard-data-server
 tensorboard-plugin-wit
 tensorflow-datasets
 tensorflow-estimator
-tensorflow-gpu
+tensorflow
 tensorflow-hub
 tensorflow-io-gcs-filesystem
 tensorflow-metadata
