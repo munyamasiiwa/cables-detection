@@ -14,23 +14,11 @@ from tensorflow.keras.layers import InputLayer
 import tensorflow as tf
 from tensorflow.keras.utils import custom_object_scope
 
-def custom_layer_deserializer(cls, cls_config):
-    # Remove the 'batch_shape' from config if it exists since it's causing the error
-    cls_config.pop('event_shape', None)  # Safely remove the batch_shape key if it exists
-    # Create the layer with the modified configuration
-    return cls(**cls_config)
+# Define paths
+model_path = 'model3.keras'  # Update with the path to your model
 
-model_path = 'model3.h5'  # Update with the correct path
-
-# Define custom objects if any other custom layers are used
-custom_objects = {
-    'InputLayer': custom_layer_deserializer,
-    # include other custom layers if necessary
-}
-
-with custom_object_scope(custom_objects):
-     model = load_model(model_path)
-
+# Load the saved model
+model = load_model(model_path)
 
 def create_database_connection():
     """Create database connection."""
