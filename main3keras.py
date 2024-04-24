@@ -10,12 +10,19 @@ import cv2
 import os
 import re  # Regular expression library for validation
 import tempfile
+from tensorflow.keras.layers import InputLayer
 
-# Define paths
+# Custom function to replace unrecognized configurations
+def custom_layer_deserializer(config):
+    if 'batch_shape' in config:
+        config.pop('batch_shape')  # Remove the problematic configuration
+        return InputLayer(**config)
+    return None
 model_path = 'model3.h5'  # Update with the path to your model
+# Load model with a custom object scope
+with tf.keras.utils.custom_object_scope({'InputLayer': custom_layer_deserializer}):
+    model = load_model(model_path)
 
-# Load the saved model
-model = load_model(model_path)
 
 def create_database_connection():
     """Create database connection."""
