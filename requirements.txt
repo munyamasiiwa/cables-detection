@@ -12,5 +12,5 @@ tensorflow-hub
 tensorflow-io-gcs-filesystem
 tensorflow-metadata
 streamlit
-python>='3,8'
+python_version>='3,8'
 
