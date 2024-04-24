@@ -11,6 +11,9 @@ import os
 import re  # Regular expression library for validation
 import tempfile
 from tensorflow.keras.layers import InputLayer
+import tensorflow as tf
+tf.__version__
+2.8.2
 
 # Custom function to replace unrecognized configurations
 def custom_layer_deserializer(config):
