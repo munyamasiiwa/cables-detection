@@ -13,5 +13,5 @@ tensorflow-io-gcs-filesystem
 tensorflow-metadata
 streamlit
 package_name; python_version > '3.2'
-setuptools wheel
+setuptools
 
