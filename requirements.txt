@@ -13,5 +13,6 @@ tensorflow-io-gcs-filesystem
 tensorflow-metadata
 streamlit
 somepackage; python_version >= '3.6'  # Correct
+mysql-connector-python
 
 
