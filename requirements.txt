@@ -1,5 +1,5 @@
 h5py
-keras==2.2.4
+keras==2.2.0
 Keras-Preprocessing
 opencv-python-headless
 tensorboard
