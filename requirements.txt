@@ -13,3 +13,5 @@ tensorflow-io-gcs-filesystem
 tensorflow-metadata
 streamlit
 package_name; python_version = '3.11'
+pip install --upgrade setuptools wheel
+
