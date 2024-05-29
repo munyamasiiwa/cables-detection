@@ -1,21 +1,20 @@
 import streamlit as st
 import mysql.connector
 from mysql.connector import Error
-from passlib.hash import bcrypt
 import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import pandas as pd
 import cv2
 import os
-import re  # Regular expression library for validation
-import tempfile
-from tensorflow.keras.layers import InputLayer
-import tensorflow as tf
-from tensorflow.keras.utils import custom_object_scope
+from datetime import datetime
 
 # Define paths
-model_path = 'model3.h5'  # Update with the path to your model
+model_path = 'model3.keras'  # Update with the path to your model
+uploads_dir = 'uploads/'  # Directory to save uploaded files
+
+# Ensure the uploads directory exists
+os.makedirs(uploads_dir, exist_ok=True)
 
 # Load the saved model
 model = load_model(model_path)
@@ -24,102 +23,32 @@ def create_database_connection():
     """Create database connection."""
     try:
         connection = mysql.connector.connect(
-            host="localhost", user="root", passwd="", database="detection")
+            host="localhost", user="root", passwd="", database="cafca")
         return connection
     except Error as e:
         st.error(f"Database connection failed due to {e}")
         return None
 
-def hash_password(password):
-    """Hash the password using bcrypt."""
-    return bcrypt.hash(password)
+def extract_frames(video_path, max_frames=50):
+    frames = []
+    cap = cv2.VideoCapture(video_path)
+    while len(frames) < max_frames:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frames.append(frame)
+    cap.release()
+    return frames
 
-def check_password(password, hashed):
-    """Check hashed password."""
-    return bcrypt.verify(password, hashed)
+def predict_on_frame(frame, model):
+    img_array = cv2.resize(frame, (260, 260))
+    img_array = image.img_to_array(img_array)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array /= 255.0
+    predictions = model.predict(img_array)
+    return np.argmax(predictions[0])
 
-def validate_signup(username, email, password):
-    """Validates signup form data."""
-    if not username:
-        return "Username cannot be empty."
-    if len(username) < 5:
-        return "Username must be at least 5 characters long."
-    if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-        return "Invalid email format."
-    if len(password) < 8:
-        return "Password must be at least 8 characters long."
-    if not re.search(r"[A-Z]", password):
-        return "Password must contain at least one uppercase letter."
-    if not re.search(r"[a-z]", password):
-        return "Password must contain at least one lowercase letter."
-    if not re.search(r"\d", password):
-        return "Password must contain at least one digit."
-    if not re.search(r"[^a-zA-Z\d]", password):
-        return "Password must contain at least one special character."
-    return ""
-
-def signup_page():
-    """Signup page logic."""
-    st.image("caf.png", width=150)
-    st.subheader("Signup Form")
-    with st.form("signup_form"):
-        username = st.text_input("Username", key="signup_username")
-        email = st.text_input("Email", key="signup_email")
-        password = st.text_input("Password", type="password", key="signup_password")
-        role = st.selectbox("Role", ["user", "admin"], key="signup_role")
-        submit_button = st.form_submit_button("Signup")
-        if submit_button:
-            error_message = validate_signup(username, email, password)
-            if error_message:
-                st.error(error_message)
-            else:
-                hashed_password = hash_password(password)
-                conn = create_database_connection()
-                if conn:
-                    cursor = conn.cursor()
-                    cursor.execute("INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)",
-                                   (username, email, hashed_password, role))
-                    conn.commit()
-                    cursor.close()
-                    conn.close()
-                    st.success("You have successfully signed up.")
-
-def login_page():
-    """Login page logic."""
-    st.image("caf.png", width=150)
-    st.subheader("Login Form")
-    with st.form("login_form"):
-        username = st.text_input("Username", key="login_username")
-        password = st.text_input("Password", type="password", key="login_password")
-        
-        # Fetching roles from the database to include in the dropdown
-        conn = create_database_connection()
-        if conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT role FROM users")
-            roles = [role[0] for role in cursor.fetchall()]
-            cursor.close()
-            conn.close()
-        role = st.selectbox("Role", roles, key="login_role")  # Role dropdown
-
-        submit_button = st.form_submit_button("Login")
-        if submit_button:
-            if not username or not password:
-                st.error("Username and password cannot be empty.")
-            else:
-                conn = create_database_connection()
-                if conn:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT * FROM users WHERE username=%s AND role=%s", (username, role))
-                    user = cursor.fetchone()
-                    cursor.close()
-                    conn.close()
-                    if user and check_password(password, user[2]):
-                        st.success("Logged in successfully.")
-                        st.session_state['logged_in'] = True
-                        st.session_state['user_role'] = role
-                    else:
-                        st.error("Login failed. Please check your username and password.")
 def prediction_page():
     """Prediction page logic."""
     st.image("caf.png", width=150)
@@ -129,10 +58,18 @@ def prediction_page():
 
     if uploaded_file is not None:
         file_type = uploaded_file.name.split('.')[-1]
-        if file_type in ['mp4']:
-            st.video(uploaded_file)
-            frames = extract_frames(uploaded_file)
-            defect_found = False
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        defective_frame_path = None  # Initialize the path for the defective frame
+        defect_found = False  # Initialize defect_found here
+
+        # Save uploaded file to the uploads directory
+        file_path = os.path.join(uploads_dir, uploaded_file.name)
+        with open(file_path, 'wb') as f:
+            f.write(uploaded_file.getbuffer())
+
+        if file_type == 'mp4':
+            st.video(file_path)
+            frames = extract_frames(file_path)
 
             for i, frame in enumerate(frames):
                 predicted_class_index = predict_on_frame(frame, model)
@@ -141,143 +78,101 @@ def prediction_page():
                 if class_labels[predicted_class_index] == 'DEFECTIVE':
                     st.error('Prediction: DEFECTIVE CABLE (DAMAGED INSULATION)')
                     st.image(frame, caption='Defective Frame', use_column_width=True)
+                    
+                    defective_frame_path = os.path.join(uploads_dir, f"defective_frame_{timestamp}_{i}.jpg")
+                    cv2.imwrite(defective_frame_path, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                     defect_found = True
-                    break  # Stop after finding the first defective frame
+                    break
 
             if not defect_found:
                 st.success('Prediction: WELL INSULATED CABLE')
                 if frames:
-                    st.image(frames[-1], caption='Last Inspected Frame', use_column_width=True)  # Show last frame if no defects
-
+                    st.image(frames[-1], caption='Last Inspected Frame', use_column_width=True)
         else:
-            # Image handling as previously defined
-            img = image.load_img(uploaded_file, target_size=(260, 260))
+            # Image handling
+            img = image.load_img(file_path, target_size=(260, 260))
             img_array = image.img_to_array(img)
             img_array = np.expand_dims(img_array, axis=0)
-            img_array /= 255.  # Normalize the image
+            img_array /= 255.0  # Normalize the image
             predictions = model.predict(img_array)
             predicted_class_index = np.argmax(predictions[0])
             class_labels = {0: 'DEFECTIVE', 1: 'NON DEFECTIVE'}
 
             if class_labels[predicted_class_index] == 'NON DEFECTIVE':
                 st.success('Prediction: WELL INSULATED CABLE')
-                st.image(uploaded_file, caption='Uploaded Image', use_column_width=True)
+                st.image(file_path, caption='Uploaded Image', use_column_width=True)
             else:
                 st.error('Prediction: DEFECTIVE CABLE (DAMAGED INSULATION)')
-                st.image(uploaded_file, caption='Uploaded Image', use_column_width=True)
+                st.image(file_path, caption='Uploaded Image', use_column_width=True)
+                defect_found = True
 
-def extract_frames(video_file):
-    """Extract frames from the uploaded video file."""
-    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    tfile.write(video_file.read())
-    tfile.flush()
-    vidcap = cv2.VideoCapture(tfile.name)
+        # Save prediction result and paths to the database
+        conn = create_database_connection()
+        if conn:
+            cursor = conn.cursor()
+            prediction = 'DEFECTIVE' if defect_found else 'NON DEFECTIVE'
+            cursor.execute(
+                "INSERT INTO predictions (filename, prediction, timestamp, file_path, defective_frame_path) VALUES (%s, %s, %s, %s, %s)",
+                (uploaded_file.name, prediction, timestamp, file_path, defective_frame_path)
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
 
-    success, frame = vidcap.read()
-    frames = []
-    while success:
-        frames.append(frame)
-        success, frame = vidcap.read()
-    vidcap.release()
-    tfile.close()
-    os.unlink(tfile.name)
-    return frames
-
-def predict_on_frame(frame, model):
-    """Predict on a single frame using the loaded model."""
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frame = cv2.resize(frame, (260, 260))
-    img_array = image.img_to_array(frame)
-    img_array = np.expand_dims(img_array, axis=0)
-    img_array /= 255.  # Normalize the image
-    prediction = model.predict(img_array)
-    return np.argmax(prediction[0])
-
-
-    predicted_class_label = class_labels[predicted_class_index]
-        # st.write(f"Predicted class label: {predicted_class_label}")  # Optionally display the class label
-
-
-def user_management_page():
-    """User management page logic."""
-    st.title('User Management')
+def reports_page():
+    """Reports page logic."""
+    st.image("caf.png", width=150)
+    st.title('Prediction Reports')
+    
     conn = create_database_connection()
     if conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username, email, role FROM users")
-        users = cursor.fetchall()
+        cursor.execute("SELECT * FROM predictions")
+        records = cursor.fetchall()
         cursor.close()
         conn.close()
 
-        # Display user information in a table
-        df = pd.DataFrame(users, columns=['ID', 'Username', 'Email', 'Role'])
-        st.write("### User Information", df)
+        # Make sure the column names match the database table structure
+        df = pd.DataFrame(records, columns=['ID', 'Filename', 'Prediction','Timestamp','File Path' ,'Defective Frame Path'])
+        st.write("### Prediction Records")
+        st.dataframe(df)
 
-        if st.session_state.get('user_role') == 'admin':
-            selected_indices = st.multiselect("Select rows:", df.index)
+        for index, row in df.iterrows():
+            st.write(f"**Filename**: {row['Filename']}")
+            st.write(f"**Prediction**: {row['Prediction']}")
+            st.write(f"**Timestamp**: {row['Timestamp']}")
+            file_path = row['File Path']
+            
+            defective_frame_path = row['Defective Frame Path']
 
-            # Edit user information
-            if selected_indices and st.button("Edit Selected"):
-                for i in selected_indices:
-                    user_id = df.loc[i, 'ID']
-                    with st.form(f"form_edit_{user_id}"):
-                        new_email = st.text_input("Email", value=df.loc[i, 'Email'], key=f"email_{i}")
-                        new_role = st.selectbox("Role", ["user", "admin"], index=["user", "admin"].index(df.loc[i, 'Role']), key=f"role_{i}")
-                        submit_button = st.form_submit_button("Update")
-                        if submit_button:
-                            conn = create_database_connection()
-                            if conn:
-                                cursor = conn.cursor()
-                                cursor.execute("UPDATE users SET email=%s, role=%s WHERE id=%s", (new_email, new_role, user_id))
-                                conn.commit()
-                                cursor.close()
-                                conn.close()
-                                st.success(f"Updated user {df.loc[i, 'Username']}")
-                                st.experimental_rerun()
+            if file_path:
+                st.write(f"**File Path**: {file_path}")
+                try:
+                    if file_path.endswith(('jpg', 'jpeg', 'png')):
+                        st.image(file_path, caption=row['Filename'])
+                    elif file_path.endswith('mp4'):
+                        st.video(file_path)
+                except Exception as e:
+                    st.error(f"Error displaying file: {e}")
 
-            # Delete user
-            if selected_indices and st.button("Delete Selected"):
-                delete_confirmed = st.checkbox("Confirm delete?")
-                if delete_confirmed and st.button("Confirm Delete"):
-                    conn = create_database_connection()
-                    if conn:
-                        for i in selected_indices:
-                            user_id = df.loc[i, 'ID']
-                            cursor = conn.cursor()
-                            cursor.execute("DELETE FROM users WHERE id=%s", (user_id,))
-                            conn.commit()
-                            cursor.close()
-                            conn.close()
-                            st.success(f"User {df.loc[i, 'Username']} deleted successfully.")
-                            df.drop(index=i, inplace=True)  # Update the dataframe after deletion
-                            st.experimental_rerun()
-
-def logout():
-    """Logout function."""
-    st.session_state['logged_in'] = False
-    st.session_state.pop('user_role', None)  # Optionally remove the role from session state
-    st.write("You have been logged out.")
+            if defective_frame_path and os.path.exists(defective_frame_path):
+                st.write(f"**Defective Frame Path**: {defective_frame_path}")
+                try:
+                    st.image(defective_frame_path, caption='Defective Frame')
+                except Exception as e:
+                    st.error(f"Error displaying defective frame: {e}")
+            else:
+                st.write("Defective frame not available or not found.")
 
 def main():
     st.sidebar.title("Navigation")
+    page_options = ["Predictions", "Reports"]
+    page = st.sidebar.radio("Choose a page:", page_options, key="main_radio")
 
-    if 'logged_in' in st.session_state and st.session_state['logged_in']:
-        page_options = ["Predictions", "User Management"]
-        page = st.sidebar.radio("Choose a page:", page_options)
-        if st.sidebar.button("Logout"):
-            logout()
-    else:
-        page = st.sidebar.radio("Choose a page:", ["Login", "Signup"])
-
-    if page == "Login":
-        login_page()
-    elif page == "Signup":
-        signup_page()
-    elif page == "Predictions":
+    if page == "Predictions":
         prediction_page()
-    elif page == "User Management":
-        user_management_page()
+    elif page == "Reports":
+        reports_page()
 
 if __name__ == "__main__":
     main()
-
